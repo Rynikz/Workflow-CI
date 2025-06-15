@@ -68,13 +68,12 @@ jobs:
           # Memberi tahu rclone di mana file kunci service account berada
           echo "service_account_file = $(pwd)/gdrive_credentials.json" >> ~/.config/rclone/rclone.conf
 
-      # Langkah 7: Upload Artefak ke Google Drive (jika diperlukan)
+      # Langkah 5.3 (PERBAIKAN): Upload ke Google Drive menggunakan rclone
       - name: Upload Artifact to Google Drive
-        uses: Jd-secret/google-drive-upload@v1.2.1
-        with:
-          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
-          folder-id: ${{ secrets.GDRIVE_FOLDER_ID }}
-          file-path: model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
+        run: |
+          # Perintah rclone untuk menyalin file ke folder tujuan di Google Drive
+          rclone copyto model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz gdrive:${{ secrets.GDRIVE_FOLDER_ID }}/model-run-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
+      # =========================================================================
 
       # Langkah 6: Login ke Docker Hub
       - name: Log in to Docker Hub
