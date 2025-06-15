@@ -8,23 +8,18 @@ import argparse # Library untuk menerima argumen dari command line
 
 def main(data_path):
     """
-    Fungsi ini dirancang untuk dijalankan dalam lingkungan CI.
-    Model dilatih dan dicatat dengan autolog.
-    PENTING: Di akhir, ia menyimpan Run ID ke sebuah file.
+    Fungsi ini sekarang menerima path ke dataset sebagai argumen,
+    dan yang paling penting, ia menyimpan Run ID ke sebuah file.
     """
     print("Memulai proses pelatihan untuk CI...")
 
     mlflow.sklearn.autolog()
 
-    # Menggunakan path yang diberikan sebagai argumen, bukan path tetap
-    try:
-        df = pd.read_csv(data_path)
-        print(f"Dataset berhasil dimuat dari: {data_path}")
-    except FileNotFoundError:
-        print(f"Error: Dataset tidak ditemukan di path yang diberikan: {data_path}")
-        return
+    # Menggunakan path yang diberikan sebagai argumen
+    df = pd.read_csv(data_path)
+    print(f"Dataset berhasil dimuat dari: {data_path}")
 
-    # Sisa kode tidak ada yang berubah
+    # Memisahkan fitur dan target
     X = df.drop("Status_Kelayakan", axis=1)
     y = df["Status_Kelayakan"]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -43,7 +38,7 @@ def main(data_path):
         accuracy = accuracy_score(y_test, model.predict(X_test))
         print(f"Akurasi Model Final: {accuracy:.4f}")
 
-        # ======================= BAGIAN PALING PENTING =======================
+        # ======================= PERUBAHAN KUNCI DI SINI =======================
         # Menyimpan Run ID yang sedang aktif ke dalam file run_id.txt
         # Ini adalah cara paling andal untuk memberitahu CI workflow apa ID-nya.
         run_id = run.info.run_id
@@ -53,13 +48,11 @@ def main(data_path):
         print(f"Run ID '{run_id}' telah disimpan ke run_id.txt.")
         # ======================================================================
 
-# Blok ini hanya akan berjalan jika skrip dieksekusi secara langsung
 if __name__ == "__main__":
     # Membuat parser untuk membaca argumen dari command line
     parser = argparse.ArgumentParser()
-    # Menambahkan argumen yang kita harapkan, yaitu --data-path
     parser.add_argument("--data-path", help="Path ke file CSV dataset bersih")
     args = parser.parse_args()
     
-    # Menjalankan fungsi utama dengan path yang diterima dari argumen
+    # Menjalankan fungsi utama dengan path yang diterima
     main(args.data_path)
