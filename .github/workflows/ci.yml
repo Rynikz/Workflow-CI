@@ -48,9 +48,9 @@ jobs:
           
       # Langkah 7: Membangun dan mendorong Docker image
       - name: Build and Push Docker Image
-        # GANTI 'NAMA_REPO_DOCKERHUB_ANDA' DI BAWAH INI
         run: |
           mlflow models build-docker \
             --model-uri "runs:/${{ steps.find_run_id.outputs.RUN_ID }}/model" \
-            --name "${{ secrets.DOCKERHUB_RYNIKZ }}/model-kelayakan-pendidikan:latest" \
+            --name "${{ secrets.DOCKERHUB_USERNAME }}/NAMA_REPO_DOCKERHUB_ANDA:latest" \
+            --env-manager=conda \
             --enable-mlserver
