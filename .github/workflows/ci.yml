@@ -18,10 +18,17 @@ jobs:
         uses: actions/checkout@v4
 
       # Langkah 2: Menyiapkan environment Python di runner
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
         with:
-          python-version: '3.12'
+          # Mengaktifkan Conda secara otomatis untuk langkah selanjutnya
+          auto-activate-base: false
+          # Memberitahu Action untuk menggunakan shell 'bash' yang sudah dikonfigurasi Conda
+          activate-environment: ml-ci-env
+          # File yang digunakan untuk membuat environment
+          environment-file: MLProject_folder/conda.yaml
+          # Menggunakan Python yang sesuai
+          python-version: "3.12.7"
 
       # Langkah 3: Menginstal library MLflow di runner
       - name: Install MLflow
@@ -29,11 +36,13 @@ jobs:
 
       # Langkah 4: Menjalankan proyek MLflow
       - name: Run MLflow Project
+        shell: bash -l {0}
         run: mlflow run ./MLProject_folder
 
       # Langkah 5: Mencari ID dari run yang baru saja selesai
       - name: Find Latest Run ID
         id: find_run_id
+        shell: bash -l {0}
         run: |
           RUN_ID=$(ls -t mlruns/0 | head -n 1)
           echo "Ditemukan Run ID: $RUN_ID"
