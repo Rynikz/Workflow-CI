@@ -2,19 +2,21 @@ name: Automatic-Model-Retraining
 
 conda_env: conda.yaml
 
-# Menambahkan bagian parameter
+# Mendefinisikan parameter global untuk proyek ini
 parameters:
   # Nama parameter: data_path
   # Tipe: path (alamat file/folder)
   # Default: Alamat ke dataset bersih kita
   data_path: 
     type: path
-    default: namadataset_preprocessing/data_bersih.csv
+    default: Kelayakan-pendidikan-indonesia_preprocessing/data_bersih.csv
 
 entry_points:
   main:
-    # Memberitahu entry point untuk menggunakan parameter di atas
+    # Memberitahu entry point untuk menggunakan parameter yang sudah didefinisikan di atas
     parameters:
-      - data_path
+      # Nama parameter yang digunakan oleh entry point ini
+      data_path: {type: path} 
+      
     # Menjalankan skrip Python dan meneruskan nilai parameter data_path
     command: "python modelling.py --data-path {data_path}"
