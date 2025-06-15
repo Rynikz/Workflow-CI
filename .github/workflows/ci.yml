@@ -49,14 +49,31 @@ jobs:
           tar -czvf model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz -C mlruns/0/${{ steps.find_run_id.outputs.RUN_ID }}/artifacts/ model
 
       # ================== BAGIAN YANG DIGANTI TOTAL ==================
-      # Langkah 5.2 (PERBAIKAN): Upload Artefak ke Google Drive menggunakan Action yang stabil
+      # Langkah 5.2 (PERBAIKAN): Setup dan Konfigurasi rclone
+      - name: Setup and Configure rclone
+        run: |
+          # Simpan kredensial dari secret ke file sementara
+          echo '${{ secrets.GDRIVE_CREDENTIALS }}' > gdrive_credentials.json
+          
+          # Unduh dan instal rclone
+          curl -O https://downloads.rclone.org/rclone-current-linux-amd64.zip
+          unzip rclone-current-linux-amd64.zip
+          sudo mv rclone-*-linux-amd64/rclone /usr/local/bin/
+          
+          # Buat file konfigurasi rclone secara otomatis
+          mkdir -p ~/.config/rclone
+          echo "[gdrive]" > ~/.config/rclone/rclone.conf
+          echo "type = drive" >> ~/.config/rclone/rclone.conf
+          echo "scope = drive" >> ~/.config/rclone/rclone.conf
+          # Memberi tahu rclone di mana file kunci service account berada
+          echo "service_account_file = $(pwd)/gdrive_credentials.json" >> ~/.config/rclone/rclone.conf
+
+      # Langkah 5.3 (PERBAIKAN): Upload ke Google Drive menggunakan rclone
       - name: Upload Artifact to Google Drive
-        uses: Jd-secret/google-drive-upload@v1.2.1
-        with:
-          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
-          folder-id: ${{ secrets.GDRIVE_FOLDER_ID }}
-          file-path: model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
-      # =================================================================
+        run: |
+          # Perintah rclone untuk menyalin file ke folder tujuan di Google Drive
+          rclone copyto model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz gdrive:${{ secrets.GDRIVE_FOLDER_ID }}/model-run-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
+      # =========================================================================
 
       # Langkah 6: Login ke Docker Hub
       - name: Log in to Docker Hub
@@ -73,6 +90,6 @@ jobs:
           conda activate ml-ci-env
           mlflow models build-docker \
             --model-uri "./mlruns/0/${{ steps.find_run_id.outputs.RUN_ID }}/artifacts/model" \
-            --name "${{ secrets.DOCKERHUB_USERNAME }}/model-kelayakan-pendidikan:latest" \
+            --name "${{ secrets.DOCKERHUB_USERNAME }}model-kelayakan-pendidikan:latest" \
             --env-manager=conda \
             --enable-mlserver
