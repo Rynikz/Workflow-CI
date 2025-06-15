@@ -42,26 +42,20 @@ jobs:
           echo "Ditemukan Run ID: $RUN_ID"
           echo "RUN_ID=$RUN_ID" >> $GITHUB_OUTPUT
 
-      # ================== LANGKAH TAMBAHAN UNTUK GOOGLE DRIVE ==================
-      # Langkah 5.1 (BARU): Mengemas artefak model menjadi arsip
+      # Langkah 5.1: Mengemas artefak model menjadi arsip
       - name: Package Model Artifact
         shell: bash -l {0}
         run: |
-          # Membuat file arsip .tar.gz dari folder model
           tar -czvf model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz -C mlruns/0/${{ steps.find_run_id.outputs.RUN_ID }}/artifacts/ model
 
-      # Langkah 5.2 (BARU): Upload Artefak ke Google Drive
+      # Langkah 5.2 (PERBAIKAN): Upload Artefak ke Google Drive menggunakan Action baru
       - name: Upload Artifact to Google Drive
-        uses: adityak74/google-drive-upload@v1.1
+        uses: prathamesh-sonpatki/google-drive-upload@main
         with:
-          # Menggunakan secrets yang sudah kita simpan di GitHub
           credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
-          folderId: ${{ secrets.GDRIVE_FOLDER_ID }}
-          # Path ke file yang ingin di-upload
-          fileName: model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
-          # Mengganti file jika sudah ada dengan nama yang sama
-          overwrite: "true"
-      # =========================================================================
+          folder-id: ${{ secrets.GDRIVE_FOLDER_ID }}
+          file-path: model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
+          file-name: model-run-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
 
       # Langkah 6: Login ke Docker Hub
       - name: Log in to Docker Hub
