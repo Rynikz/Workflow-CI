@@ -11,12 +11,9 @@ def main():
     Model dilatih menggunakan parameter yang sudah ditentukan dan dicatat dengan autolog.
     """
     print("Memulai proses pelatihan untuk CI...")
-
-    # Mengaktifkan autologging. Di lingkungan CI, ini akan otomatis
-    # membuat folder 'mlruns' di direktori kerja untuk menyimpan hasil.
+ 
     mlflow.sklearn.autolog()
 
-    # Memuat dataset
     try:
         df = pd.read_csv("Kelayakan-pendidikan-indonesia_preprocessing/data_bersih.csv")
         print("Dataset berhasil dimuat.")
