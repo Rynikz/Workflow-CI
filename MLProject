@@ -1,0 +1,11 @@
+name: Automatic-Model-Retraining
+
+# Menentukan bahwa environment untuk proyek ini didefinisikan di conda.yaml
+conda_env: conda.yaml
+
+# Mendefinisikan titik masuk (entry points) untuk proyek ini
+entry_points:
+  # Nama entry point utama adalah 'main'
+  main:
+    # Perintah yang akan dieksekusi saat 'mlflow run' dipanggil
+    command: "python modelling.py"

@@ -1,0 +1,56 @@
+# Nama workflow yang akan muncul di tab "Actions" GitHub
+name: CI - Train Model and Push Docker Image
+
+# Pemicu: workflow akan berjalan setiap kali ada 'push' ke branch 'main'
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  # Nama job yang akan berjalan
+  train-build-push:
+    # Menggunakan runner Ubuntu versi terbaru dari GitHub
+    runs-on: ubuntu-latest
+
+    steps:
+      # Langkah 1: Mengunduh kode dari repository ke runner
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Langkah 2: Menyiapkan environment Python di runner
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      # Langkah 3: Menginstal library MLflow di runner
+      - name: Install MLflow
+        run: pip install mlflow==2.19.0
+
+      # Langkah 4: Menjalankan proyek MLflow
+      - name: Run MLflow Project
+        run: mlflow run ./MLProject_folder
+
+      # Langkah 5: Mencari ID dari run yang baru saja selesai
+      - name: Find Latest Run ID
+        id: find_run_id
+        run: |
+          RUN_ID=$(ls -t mlruns/0 | head -n 1)
+          echo "Ditemukan Run ID: $RUN_ID"
+          echo "RUN_ID=$RUN_ID" >> $GITHUB_OUTPUT
+
+      # Langkah 6: Login ke Docker Hub menggunakan secrets
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_RYNIKZ }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          
+      # Langkah 7: Membangun dan mendorong Docker image
+      - name: Build and Push Docker Image
+        # GANTI 'NAMA_REPO_DOCKERHUB_ANDA' DI BAWAH INI
+        run: |
+          mlflow models build-docker \
+            --model-uri "runs:/${{ steps.find_run_id.outputs.RUN_ID }}/model" \
+            --name "${{ secrets.DOCKERHUB_RYNIKZ }}/model-kelayakan-pendidikan:latest" \
+            --enable-mlserver
