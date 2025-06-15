@@ -64,13 +64,32 @@ jobs:
           tar -czvf $ARTIFACT_NAME -C mlruns/0/${{ steps.find_run_id.outputs.RUN_ID }}/artifacts/ model
           echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
 
-      # Langkah 7: Upload Artefak ke Google Drive
+       # ================== BAGIAN YANG DIGANTI TOTAL ==================
+      # Langkah 7: Setup dan Konfigurasi rclone secara manual
+      - name: Setup and Configure rclone for GDrive Upload
+        run: |
+          # 1. Simpan kredensial dari secret ke file sementara
+          echo '${{ secrets.GDRIVE_CREDENTIALS }}' > gdrive_credentials.json
+          
+          # 2. Unduh dan instal rclone dari sumber resminya
+          curl -O https://downloads.rclone.org/rclone-current-linux-amd64.zip
+          unzip rclone-current-linux-amd64.zip
+          sudo mv rclone-*-linux-amd64/rclone /usr/local/bin/
+          
+          # 3. Buat file konfigurasi rclone secara otomatis
+          mkdir -p ~/.config/rclone
+          echo "[gdrive]" > ~/.config/rclone/rclone.conf
+          echo "type = drive" >> ~/.config/rclone/rclone.conf
+          echo "scope = drive" >> ~/.config/rclone/rclone.conf
+          # Memberi tahu rclone di mana file kunci service account berada
+          echo "service_account_file = $(pwd)/gdrive_credentials.json" >> ~/.config/rclone/rclone.conf
+
+      # Langkah 8: Upload ke Google Drive menggunakan rclone
       - name: Upload Artifact to Google Drive
-        uses: Jd-secret/google-drive-upload@v1.2.1
-        with:
-          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
-          folder-id: ${{ secrets.GDRIVE_FOLDER_ID }}
-          file-path: ${{ steps.package_artifact.outputs.ARTIFACT_NAME }}
+        run: |
+          # Perintah rclone untuk menyalin file ke folder tujuan di Google Drive
+          rclone copyto model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz gdrive:${{ secrets.GDRIVE_FOLDER_ID }}/model-run-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
+      # =========================================================================
 
       # Langkah 8: Login ke Docker Hub
       - name: Log in to Docker Hub
