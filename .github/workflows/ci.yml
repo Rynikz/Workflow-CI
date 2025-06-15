@@ -26,20 +26,30 @@ jobs:
         shell: bash -l {0}
         run: conda env create -f conda.yaml --name ml-ci-env
 
-      # Langkah 4: Menjalankan proyek MLflow
-      - name: Run MLflow Project
+      # Langkah 4 (Perbaikan Kunci): Menjalankan proyek DAN menyimpan log-nya
+      - name: Run MLflow Project and Capture Output
         shell: bash -l {0}
         run: |
           conda activate ml-ci-env
-          mlflow run .
+          # Menyimpan semua output (termasuk error) ke file bernama run_output.log
+          mlflow run . > ../run_output.log 2>&1
 
-      # Langkah 5: Mencari ID dari run yang baru saja selesai
-      - name: Find Latest Run ID
+      # Langkah 5 (Perbaikan Kunci): Mengekstrak Run ID dari file log
+      - name: Extract Run ID from Log
         id: find_run_id
-        shell: bash -l {0}
         run: |
-          RUN_ID=$(ls -t mlruns/0 | head -n 1)
-          echo "Ditemukan Run ID: $RUN_ID"
+          # 'grep' mencari baris yang berisi "run with ID" di dalam log
+          # 'sed' mengekstrak string yang berada di antara tanda kutip tunggal
+          RUN_ID=$(grep "run with ID" ../run_output.log | sed "s/.*'\(.*\)'.*/\1/")
+          
+          # Pemeriksaan untuk memastikan RUN_ID berhasil ditemukan
+          if [ -z "$RUN_ID" ]; then
+            echo "::error::Gagal menemukan Run ID dalam log. Menampilkan isi log:"
+            cat ../run_output.log
+            exit 1
+          fi
+          
+          echo "Ditemukan Run ID secara andal: $RUN_ID"
           echo "RUN_ID=$RUN_ID" >> $GITHUB_OUTPUT
 
       # Langkah 5.1: Mengemas artefak model menjadi arsip
@@ -48,28 +58,13 @@ jobs:
         run: |
           tar -czvf model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz -C mlruns/0/${{ steps.find_run_id.outputs.RUN_ID }}/artifacts/ model
 
-      # ================== BAGIAN YANG DIGANTI TOTAL ==================
-      # Langkah 5.2 (PERBAIKAN): Setup Google Drive CLI
-      - name: Setup Google Drive CLI
-        run: |
-          # Simpan kredensial dari secret ke file sementara
-          echo '${{ secrets.GDRIVE_CREDENTIALS }}' > gdrive_credentials.json
-          # Unduh program gdrive untuk linux
-          wget https://github.com/protium/gdrive-binary/releases/download/v2.1.2/gdrive-2.1.2-linux-x64
-          # Beri izin eksekusi
-          chmod +x gdrive-2.1.2-linux-x64
-          # Pindahkan ke lokasi yang bisa diakses secara global
-          sudo mv gdrive-2.1.2-linux-x64 /usr/local/bin/gdrive
-      
-      # Langkah 5.3 (PERBAIKAN): Upload ke Google Drive menggunakan CLI
+      # Langkah 5.2: Upload Artefak ke Google Drive
       - name: Upload Artifact to Google Drive
-        run: |
-          # Perintah untuk upload file ke folder spesifik menggunakan file service account
-          gdrive files upload \
-            --parent ${{ secrets.GDRIVE_FOLDER_ID }} \
-            --service-account gdrive_credentials.json \
-            model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
-      # =================================================================
+        uses: Jd-secret/google-drive-upload@v1.2.1
+        with:
+          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
+          folder-id: ${{ secrets.GDRIVE_FOLDER_ID }}
+          file-path: model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
 
       # Langkah 6: Login ke Docker Hub
       - name: Log in to Docker Hub
