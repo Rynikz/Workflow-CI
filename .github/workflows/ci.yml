@@ -48,14 +48,13 @@ jobs:
         run: |
           tar -czvf model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz -C mlruns/0/${{ steps.find_run_id.outputs.RUN_ID }}/artifacts/ model
 
-      # Langkah 5.2 (PERBAIKAN): Upload Artefak ke Google Drive menggunakan Action baru
+      # Langkah 5.2 (PERBAIKAN): Upload Artefak ke Google Drive menggunakan Action baru yang stabil
       - name: Upload Artifact to Google Drive
-        uses: prathamesh-sonpatki/google-drive-upload@main
+        uses: Jd-secret/google-drive-upload@v1.2.1
         with:
           credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
           folder-id: ${{ secrets.GDRIVE_FOLDER_ID }}
           file-path: model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
-          file-name: model-run-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
 
       # Langkah 6: Login ke Docker Hub
       - name: Log in to Docker Hub
