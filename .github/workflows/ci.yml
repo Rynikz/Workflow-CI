@@ -58,13 +58,28 @@ jobs:
         run: |
           tar -czvf model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz -C mlruns/0/${{ steps.find_run_id.outputs.RUN_ID }}/artifacts/ model
 
-      # Langkah 5.2: Upload Artefak ke Google Drive
+      # ================== BAGIAN YANG DIGANTI TOTAL ==================
+      # Langkah 5.2 (PERBAIKAN): Setup Google Drive CLI
+      - name: Setup Google Drive CLI
+        run: |
+          # Simpan kredensial dari secret ke file sementara
+          echo '${{ secrets.GDRIVE_CREDENTIALS }}' > gdrive_credentials.json
+          # Unduh program gdrive untuk linux
+          wget https://github.com/protium/gdrive-binary/releases/download/v2.1.2/gdrive-2.1.2-linux-x64
+          # Beri izin eksekusi
+          chmod +x gdrive-2.1.2-linux-x64
+          # Pindahkan ke lokasi yang bisa diakses secara global
+          sudo mv gdrive-2.1.2-linux-x64 /usr/local/bin/gdrive
+      
+      # Langkah 5.3 (PERBAIKAN): Upload ke Google Drive menggunakan CLI
       - name: Upload Artifact to Google Drive
-        uses: Jd-secret/google-drive-upload@v1.2.1
-        with:
-          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
-          folder-id: ${{ secrets.GDRIVE_FOLDER_ID }}
-          file-path: model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
+        run: |
+          # Perintah untuk upload file ke folder spesifik menggunakan file service account
+          gdrive files upload \
+            --parent ${{ secrets.GDRIVE_FOLDER_ID }} \
+            --service-account gdrive_credentials.json \
+            model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
+      # =================================================================
 
       # Langkah 6: Login ke Docker Hub
       - name: Log in to Docker Hub
