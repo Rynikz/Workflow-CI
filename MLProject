@@ -1,11 +1,20 @@
 name: Automatic-Model-Retraining
 
-# Menentukan bahwa environment untuk proyek ini didefinisikan di conda.yaml
 conda_env: conda.yaml
 
-# Mendefinisikan titik masuk (entry points) untuk proyek ini
+# Menambahkan bagian parameter
+parameters:
+  # Nama parameter: data_path
+  # Tipe: path (alamat file/folder)
+  # Default: Alamat ke dataset bersih kita
+  data_path: 
+    type: path
+    default: namadataset_preprocessing/data_bersih.csv
+
 entry_points:
-  # Nama entry point utama adalah 'main'
   main:
-    # Perintah yang akan dieksekusi saat 'mlflow run' dipanggil
-    command: "python modelling.py"
+    # Memberitahu entry point untuk menggunakan parameter di atas
+    parameters:
+      - data_path
+    # Menjalankan skrip Python dan meneruskan nilai parameter data_path
+    command: "python modelling.py --data-path {data_path}"
