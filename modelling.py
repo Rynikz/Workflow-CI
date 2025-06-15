@@ -4,8 +4,9 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import mlflow
 import mlflow.sklearn
+import argparse
 
-def main():
+def main(data_path):
     """
     Fungsi ini dirancang untuk dijalankan dalam lingkungan CI.
     Model dilatih dan dicatat dengan autolog.
@@ -15,7 +16,9 @@ def main():
 
     mlflow.sklearn.autolog()
 
-    df = pd.read_csv("Kelayakan-pendidikan-indonesia_preprocessing/data_bersih.csv")
+    df = pd.read_csv(data_path)
+    print(f"Dataset berhasil dimuat dari: {data_path}")
+
     X = df.drop("Status_Kelayakan", axis=1)
     y = df["Status_Kelayakan"]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -45,4 +48,8 @@ def main():
         # ======================================================================
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data-path", help="Path ke file CSV dataset bersih")
+    args = parser.parse_args()
+    
+    main(args.data_path)
