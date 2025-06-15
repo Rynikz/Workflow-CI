@@ -1,27 +1,29 @@
 # Nama workflow yang akan muncul di tab "Actions" GitHub
-name: CI - Train, Push to GDrive, and Build Docker Image
+name: CI - Train, Build, and Push Docker Image (Final)
 
 on:
   push:
     branches: [ main ]
 
 jobs:
+  # Nama job yang akan berjalan
   train-build-push:
+    # Menggunakan runner Ubuntu versi terbaru dari GitHub
     runs-on: ubuntu-latest
 
     steps:
-      # Langkah 1: Checkout repository
+      # Langkah 1: Mengunduh kode dari repository Anda
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Langkah 2: Menyiapkan Miniconda
+      # Langkah 2: Menyiapkan Miniconda dengan benar
       - name: Set up Miniconda
         uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
           python-version: "3.12.7"
       
-      # Langkah 3: Membuat lingkungan kerja virtual
+      # Langkah 3: Membuat lingkungan kerja virtual dari file conda.yaml
       - name: Create Conda Environment
         shell: bash -l {0}
         run: conda env create -f conda.yaml --name ml-ci-env
@@ -31,58 +33,40 @@ jobs:
         shell: bash -l {0}
         run: |
           conda activate ml-ci-env
+          # Menjalankan proyek, yang akan menghasilkan run_id.txt
           mlflow run .
 
-      # Langkah 5: Mencari ID dari run yang baru saja selesai
-      - name: Find Latest Run ID
+      # Langkah 5: Membaca Run ID dari file
+      # Ini adalah langkah kunci yang paling andal
+      - name: Read Run ID from File
         id: find_run_id
-        shell: bash -l {0}
         run: |
-          RUN_ID=$(ls -t mlruns/0 | head -n 1)
-          echo "Ditemukan Run ID: $RUN_ID"
+          RUN_ID=$(cat run_id.txt)
+          echo "Ditemukan Run ID dari file: $RUN_ID"
           echo "RUN_ID=$RUN_ID" >> $GITHUB_OUTPUT
 
-      # Langkah 5.1: Mengemas artefak model menjadi arsip
+      # Langkah 6: Mengemas artefak model
       - name: Package Model Artifact
         shell: bash -l {0}
         run: |
           tar -czvf model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz -C mlruns/0/${{ steps.find_run_id.outputs.RUN_ID }}/artifacts/ model
 
-      # ================== BAGIAN YANG DIGANTI TOTAL ==================
-      # Langkah 5.2 (PERBAIKAN): Setup dan Konfigurasi rclone
-      - name: Setup and Configure rclone
-        run: |
-          # Simpan kredensial dari secret ke file sementara
-          echo '${{ secrets.GDRIVE_CREDENTIALS }}' > gdrive_credentials.json
-          
-          # Unduh dan instal rclone
-          curl -O https://downloads.rclone.org/rclone-current-linux-amd64.zip
-          unzip rclone-current-linux-amd64.zip
-          sudo mv rclone-*-linux-amd64/rclone /usr/local/bin/
-          
-          # Buat file konfigurasi rclone secara otomatis
-          mkdir -p ~/.config/rclone
-          echo "[gdrive]" > ~/.config/rclone/rclone.conf
-          echo "type = drive" >> ~/.config/rclone/rclone.conf
-          echo "scope = drive" >> ~/.config/rclone/rclone.conf
-          # Memberi tahu rclone di mana file kunci service account berada
-          echo "service_account_file = $(pwd)/gdrive_credentials.json" >> ~/.config/rclone/rclone.conf
-
-      # Langkah 5.3 (PERBAIKAN): Upload ke Google Drive menggunakan rclone
+      # Langkah 7: Upload Artefak ke Google Drive (jika diperlukan)
       - name: Upload Artifact to Google Drive
-        run: |
-          # Perintah rclone untuk menyalin file ke folder tujuan di Google Drive
-          rclone copyto model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz gdrive:${{ secrets.GDRIVE_FOLDER_ID }}/model-run-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
-      # =========================================================================
+        uses: Jd-secret/google-drive-upload@v1.2.1
+        with:
+          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
+          folder-id: ${{ secrets.GDRIVE_FOLDER_ID }}
+          file-path: model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
 
-      # Langkah 6: Login ke Docker Hub
+      # Langkah 8: Login ke Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           
-      # Langkah 7: Membangun dan mendorong Docker image
+      # Langkah 9: Membangun dan mendorong Docker image
       - name: Build and Push Docker Image
         # GANTI 'NAMA_REPO_DOCKERHUB_ANDA' DI BAWAH INI
         shell: bash -l {0}
@@ -90,6 +74,6 @@ jobs:
           conda activate ml-ci-env
           mlflow models build-docker \
             --model-uri "./mlruns/0/${{ steps.find_run_id.outputs.RUN_ID }}/artifacts/model" \
-            --name "${{ secrets.DOCKERHUB_USERNAME }}model-kelayakan-pendidikan:latest" \
+            --name "${{ secrets.DOCKERHUB_USERNAME }}/model-kelayakan-pendidikan:latest" \
             --env-manager=conda \
             --enable-mlserver
