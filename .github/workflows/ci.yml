@@ -1,65 +1,65 @@
 # Nama workflow yang akan muncul di tab "Actions" GitHub
-name: CI - Train, Build, and Push Docker Image (Final)
+name: CI - Train, Build, and Push Docker Image (Permission Fix)
 
-# Pemicu: workflow akan berjalan setiap kali ada 'push' ke branch 'main'
 on:
   push:
     branches: [ main ]
 
 jobs:
-  # Nama job yang akan berjalan
   train-build-push:
-    # Menggunakan runner Ubuntu versi terbaru dari GitHub
     runs-on: ubuntu-latest
 
     steps:
-      # Langkah 1: Mengunduh kode dari repository Anda ke runner
+      # Langkah 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Langkah 2: Menginstal program Miniconda dengan benar
+      # Langkah 2: Menginstal program Miniconda
       - name: Set up Miniconda
         uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
           python-version: "3.12.7"
       
-      # Langkah 3: Membuat lingkungan kerja virtual dari file conda.yaml
+      # Langkah 3: Membuat lingkungan kerja virtual
       - name: Create Conda Environment
-        # 'shell: bash -l {0}' diperlukan agar perintah conda bisa ditemukan
         shell: bash -l {0}
         run: conda env create -f MLProject_folder/conda.yaml --name ml-ci-env
 
-      # Langkah 4: Menjalankan proyek MLflow di dalam lingkungan yang baru dibuat
+      # Langkah 4 (Perbaikan Kunci): Aktifkan environment lalu jalankan
       - name: Run MLflow Project
-        # 'shell: conda run ...' secara spesifik menjalankan perintah
-        # berikutnya di dalam environment 'ml-ci-env'
-        shell: conda run -n ml-ci-env {0}
-        run: mlflow run ./MLProject_folder
-      
-      # Langkah 5: Mencari ID dari run yang baru saja selesai
+        # 'shell: bash -l {0}' diperlukan agar bisa menemukan perintah 'conda'
+        shell: bash -l {0}
+        run: |
+          # Mengaktifkan environment yang sudah kita buat
+          conda activate ml-ci-env
+          # Setelah aktif, baru jalankan perintah mlflow
+          mlflow run ./MLProject_folder
+
+      # Langkah 5: Mencari ID run
       - name: Find Latest Run ID
         id: find_run_id
-        # Perintah ini akan selalu menemukan folder terakhir yang dibuat di direktori mlruns/0
         shell: bash -l {0}
         run: |
           RUN_ID=$(ls -t mlruns/0 | head -n 1)
           echo "Ditemukan Run ID: $RUN_ID"
           echo "RUN_ID=$RUN_ID" >> $GITHUB_OUTPUT
 
-      # Langkah 6: Login ke Docker Hub menggunakan secrets
+      # Langkah 6: Login ke Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           
-      # Langkah 7: Membangun dan mendorong Docker image
+      # Langkah 7 (Perbaikan Kunci): Aktifkan environment lalu jalankan build
       - name: Build and Push Docker Image
         # GANTI 'NAMA_REPO_DOCKERHUB_ANDA' DI BAWAH INI
-        # 'shell: conda run ...' diperlukan agar perintah mlflow bisa ditemukan
-        shell: conda run -n ml-ci-env {0}
+        shell: bash -l {0}
         run: |
+          # Mengaktifkan environment lagi untuk memastikan 'mlflow' ditemukan
+          conda activate ml-ci-env
+          # Menjalankan perintah build
           mlflow models build-docker \
             --model-uri "./mlruns/0/${{ steps.find_run_id.outputs.RUN_ID }}/artifacts/model" \
             --name "${{ secrets.DOCKERHUB_USERNAME }}/model-kelayakan-pendidikan:latest" \
