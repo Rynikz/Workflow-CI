@@ -1,64 +1,117 @@
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
-import mlflow
-import mlflow.sklearn
-import argparse
-import os # Library untuk berinteraksi dengan sistem operasi
+# Nama workflow yang akan muncul di tab "Actions" GitHub
+name: CI - Latih, Simpan Artefak, dan Bangun Docker Image
 
-def main(data_path):
-    """
-    Fungsi ini sekarang menyimpan run_id.txt menggunakan path absolut
-    untuk memastikan file selalu ditemukan oleh workflow CI.
-    """
-    print("Memulai proses pelatihan untuk CI...")
+on:
+  push:
+    branches: [ main ] # Pastikan Anda melakukan push ke branch 'main'
+  # Menambahkan 'workflow_dispatch' agar bisa dijalankan secara manual untuk testing
+  workflow_dispatch:
 
-    mlflow.sklearn.autolog()
+jobs:
+  train-build-push:
+    runs-on: ubuntu-latest
 
-    try:
-        df = pd.read_csv(data_path)
-        print(f"Dataset berhasil dimuat dari: {data_path}")
-    except FileNotFoundError:
-        print(f"Error: Dataset tidak ditemukan di path yang diberikan: {data_path}")
-        return
+    steps:
+      # Langkah 1: Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    X = df.drop("Status_Kelayakan", axis=1)
-    y = df["Status_Kelayakan"]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+      # Langkah 2: Menyiapkan Miniconda
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: "3.12.7"
+      
+      # Langkah 3: Membuat lingkungan kerja virtual
+      - name: Create Conda Environment
+        shell: bash -l {0}
+        run: conda env create -f MLProject_folder/conda.yaml --name ml-ci-env
 
-    best_params = {
-        'n_estimators': 50,
-        'max_depth': 10,
-        'min_samples_split': 2,
-        'random_state': 42
-    }
-    
-    with mlflow.start_run() as run:
-        model = RandomForestClassifier(**best_params)
-        model.fit(X_train, y_train)
+      # Langkah 4: Menjalankan proyek MLflow
+      - name: Run MLflow Project
+        shell: bash -l {0}
+        run: |
+          conda activate ml-ci-env
+          mlflow run ./MLProject_folder -P data_path=MLProject_folder/Kelayakan-pendidikan-indonesia_preprocessing/data_bersih.csv
 
-        accuracy = accuracy_score(y_test, model.predict(X_test))
-        print(f"Akurasi Model Final: {accuracy:.4f}")
+      # Langkah 5: Membaca Run ID dari file
+      - name: Read Run ID from File
+        id: find_run_id
+        run: |
+          # Pemeriksaan untuk memastikan file run_id.txt ada
+          if [ ! -f run_id.txt ]; then
+            echo "::error::File run_id.txt tidak ditemukan setelah MLflow run selesai."
+            exit 1
+          fi
+          RUN_ID=$(cat run_id.txt)
+          echo "Ditemukan Run ID dari file: $RUN_ID"
+          echo "RUN_ID=$RUN_ID" >> $GITHUB_OUTPUT
 
-        # ======================= PERUBAHAN KUNCI DI SINI =======================
-        run_id = run.info.run_id
-        
-        # Menggunakan variabel lingkungan GITHUB_WORKSPACE untuk mendapatkan path absolut
-        # dari direktori utama proyek di runner GitHub.
-        # Ini memastikan file run_id.txt disimpan di lokasi yang benar dan dapat diprediksi.
-        workspace = os.getenv("GITHUB_WORKSPACE", ".")
-        output_path = os.path.join(workspace, "run_id.txt")
-        
-        with open(output_path, "w") as f:
-            f.write(run_id)
-        
-        print(f"Run ID '{run_id}' telah disimpan ke path absolut: {output_path}.")
-        # ======================================================================
+      # Langkah 6: Mengemas artefak model
+      - name: Package Model Artifact
+        id: package_artifact
+        shell: bash -l {0}
+        run: |
+          ARTIFACT_NAME="model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz"
+          echo "Nama arsip: $ARTIFACT_NAME"
+          # Pemeriksaan untuk memastikan folder artefak ada
+          if [ ! -d "mlruns/0/${{ steps.find_run_id.outputs.RUN_ID }}/artifacts/model" ]; then
+            echo "::error::Folder artefak model tidak ditemukan!"
+            ls -R mlruns
+            exit 1
+          fi
+          tar -czvf $ARTIFACT_NAME -C mlruns/0/${{ steps.find_run_id.outputs.RUN_ID }}/artifacts/ model
+          echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--data-path", help="Path ke file CSV dataset bersih")
-    args = parser.parse_args()
-    
-    main(args.data_path)
+       # ================== BAGIAN YANG DIGANTI TOTAL ==================
+      # Langkah 7: Setup dan Konfigurasi rclone secara manual
+      - name: Setup and Configure rclone for GDrive Upload
+        run: |
+          # 1. Simpan kredensial dari secret ke file sementara
+          echo '${{ secrets.GDRIVE_CREDENTIALS }}' > gdrive_credentials.json
+          
+          # 2. Unduh dan instal rclone dari sumber resminya
+          curl -O https://downloads.rclone.org/rclone-current-linux-amd64.zip
+          unzip rclone-current-linux-amd64.zip
+          sudo mv rclone-*-linux-amd64/rclone /usr/local/bin/
+          
+          # 3. Buat file konfigurasi rclone secara otomatis
+          mkdir -p ~/.config/rclone
+          echo "[gdrive]" > ~/.config/rclone/rclone.conf
+          echo "type = drive" >> ~/.config/rclone/rclone.conf
+          echo "scope = drive" >> ~/.config/rclone/rclone.conf
+          # Memberi tahu rclone di mana file kunci service account berada
+          echo "service_account_file = $(pwd)/gdrive_credentials.json" >> ~/.config/rclone/rclone.conf
+
+      # Langkah 8: Upload ke Google Drive menggunakan rclone
+      - name: Upload Artifact to Google Drive
+        run: |
+          # Perintah rclone untuk menyalin file ke folder tujuan di Google Drive
+          rclone copyto model-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz gdrive:${{ secrets.GDRIVE_FOLDER_ID }}/model-run-${{ steps.find_run_id.outputs.RUN_ID }}.tar.gz
+      # =========================================================================
+
+      # Langkah 8: Login ke Docker Hub
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request' # Langkah keamanan: jangan login pada pull request dari fork
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          
+      # Langkah 9: Membangun dan mendorong Docker image
+      - name: Build and Push Docker Image
+        if: github.event_name != 'pull_request' # Langkah keamanan
+        # GANTI 'NAMA_REPO_DOCKERHUB_ANDA' DI BAWAH INI
+        shell: bash -l {0}
+        run: |
+          echo "Membangun Docker image..."
+          conda activate ml-ci-env
+          mlflow models build-docker \
+            --model-uri "./mlruns/0/${{ steps.find_run_id.outputs.RUN_ID }}/artifacts/model" \
+            --name "${{ secrets.DOCKERHUB_USERNAME }}/model-kelayakan-pendidikan:latest" \
+            --env-manager=conda \
+            --enable-mlserver
+          
+          echo "Mendorong image ke Docker Hub..."
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/model-kelayakan-pendidikan:latest"
