@@ -33,7 +33,7 @@ jobs:
         shell: bash -l {0}
         run: |
           conda activate ml-ci-env
-           mlflow run ./MLProject_folder
+          mlflow run ./MLProject_folder -P data_path=MLProject_folder/Kelayakan-pendidikan-indonesia_preprocessing/data_bersih.csv
 
       # Langkah 5: Membaca Run ID dari file
       - name: Read Run ID from File
