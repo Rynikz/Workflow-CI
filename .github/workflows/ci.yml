@@ -26,14 +26,14 @@ jobs:
       # Langkah 3: Membuat lingkungan kerja virtual
       - name: Create Conda Environment
         shell: bash -l {0}
-        run: conda env create -f conda.yaml --name ml-ci-env
+        run: conda env create -f MLProject_folder/conda.yaml --name ml-ci-env
 
       # Langkah 4: Menjalankan proyek MLflow
       - name: Run MLflow Project
         shell: bash -l {0}
         run: |
           conda activate ml-ci-env
-          mlflow run .
+           mlflow run ./MLProject_folder
 
       # Langkah 5: Membaca Run ID dari file
       - name: Read Run ID from File
