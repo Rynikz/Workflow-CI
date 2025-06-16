@@ -35,15 +35,11 @@ jobs:
           conda activate ml-ci-env
           mlflow run ./MLProject_folder -P data_path=MLProject_folder/Kelayakan-pendidikan-indonesia_preprocessing/data_bersih.csv
 
-      # Langkah 5: Membaca Run ID dari file
+      # Langkah 5: Membaca Run ID dari file yang dibuat oleh skrip Python
       - name: Read Run ID from File
         id: find_run_id
         run: |
-          # Pemeriksaan untuk memastikan file run_id.txt ada
-          if [ ! -f run_id.txt ]; then
-            echo "::error::File run_id.txt tidak ditemukan setelah MLflow run selesai."
-            exit 1
-          fi
+          # Metode ini paling andal karena membaca laporan langsung dari skrip
           RUN_ID=$(cat run_id.txt)
           echo "Ditemukan Run ID dari file: $RUN_ID"
           echo "RUN_ID=$RUN_ID" >> $GITHUB_OUTPUT
